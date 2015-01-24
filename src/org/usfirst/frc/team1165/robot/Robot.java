@@ -19,10 +19,12 @@ import edu.wpi.first.wpilibj.Ultrasonic;
 public class Robot extends SampleRobot
 {
 	private Gyro gyro;
+	private Ultrasonic ultrasonic;
 	double kp = 3;
 	Joystick stick;
 	BuiltInAccelerometer accelerometer = new BuiltInAccelerometer();
 	// Channels for the wheels
+	double autodrivepower=-1;
 	final double twistPower=0.275;
 	final double smallTwistPower = 0.1;
 	final double smallAngle = 1;
@@ -52,12 +54,13 @@ public class Robot extends SampleRobot
 		robotDrive.setExpiration(0.1);
 		stick = new Joystick(joystickChannel);
 		gyro = new Gyro(0); // Gyro on Analog Channel 0
+		ultrasonic = new Ultrasonic(0, 1);
 	}
 
 	public double getCorrection(double angle)
 	{
 		if (Math.abs(angle) > bigAngle)
-			return twistPower;
+			return angle > 0 ? twistPower : -twistPower;;
 		if (Math.abs(angle) < smallAngle)
 			return 0;
 		return angle > 0 ? smallTwistPower : -smallTwistPower;
@@ -66,20 +69,38 @@ public class Robot extends SampleRobot
 	/**
 	 * Runs the motors with Mecanum drive.
 	 */
+	public double getPower(double range)
+	{
+		if( range>28.5)//not changed yet
+			return autodrivepower;
+		if (range < 28.5 && range > 10.5) return -autodrivepower;
+		//if(range<12 && range >11 ) return 0.0;
+		if(range<10.5 && range > 6.5) return -0.1;
+		return 0.0;
+	}
 	public void autonomous()
 	{
-		int ct = 0;
 		gyro.setSensitivity(7.0 / 1000.0);
+		ultrasonic.setEnabled(true);
+		ultrasonic.setAutomaticMode(true);
 		gyro.reset();
 		double angle = 0;
 		double twist;
+		double power;
+		//boolean brakeApplied = false;
 		while (isAutonomous() && isEnabled())
 		{
 			angle = gyro.getAngle();
 			twist = getCorrection(angle);
-			robotDrive.mecanumDrive_Cartesian(-0.5, 0, twist, 0); 
+			double range=ultrasonic.getRangeInches();
+//			if (range < 15) brakeApplied = true;
+//			if (range > 50) brakeApplied = false;
+            power = getPower(range);//,brakeApplied);
+			robotDrive.mecanumDrive_Cartesian(power, 0, twist, 0);
+			
 			SmartDashboard.putNumber("Gyro", angle);
 			SmartDashboard.putNumber("Twist", twist);
+			SmartDashboard.putNumber("Range",range);
 		}
 	}
 
@@ -88,16 +109,11 @@ public class Robot extends SampleRobot
 		robotDrive.setSafetyEnabled(true);
 		gyro.setSensitivity(7.0 / 1000.0);
 		gyro.reset();
-		// Ultrasonic ultrasonic;
-		// ultrasonic = new Ultrasonic(0, 1);
-		// ultrasonic.setEnabled(true);
-		// ultrasonic.ping(); //setAutomaticMode(true);
+		ultrasonic.setEnabled(true);
+		ultrasonic.setAutomaticMode(true);
 		while (isOperatorControl() && isEnabled())
 		{
-			// For some reason this is not working
-			// ultrasonic.ping();
-			// SmartDashboard.putNumber("Ultrasonic",
-			// ultrasonic.getRangeInches());
+			SmartDashboard.putNumber("Ultrasonic",ultrasonic.getRangeInches());
 			// Drive train jaguars on PWM 1 and 2
 			// Use the joystick X axis for lateral movement, Y axis for forward
 			// movement, and Z axis for rotation.
@@ -105,8 +121,7 @@ public class Robot extends SampleRobot
 			// is set to zero.
 			robotDrive.mecanumDrive_Cartesian(stick.getY(), stick.getX(),
 					-stick.getTwist(), 0);
-			SmartDashboard.putNumber("Accelerometer X", accelerometer.getX());
-			String GyroArray = "";
+			SmartDashboard.putNumber("Accelerometer X", accelerometer.getX()*100);
 			double angle = gyro.getAngle(); // get current heading
 			// drive towards heading 0
 			Timer.delay(0.005);
